@@ -12,10 +12,12 @@ Usage: create-secrets.sh --context CONTEXT TARGET
 Targets:
   dashboard-model  Creates dashboard-model/AI_TOKEN in DASHBOARD_NAMESPACE
   analyzer-model   Creates orka-model/token in the chart-created analysis namespace
-  dashboard-oauth  Creates dashboard-oauth/OAUTH_CLIENT_SECRET,SESSION_KEY
+  dashboard-oauth      Creates dashboard-oauth/OAUTH_CLIENT_SECRET,SESSION_KEY
+  opencode-credentials Creates opencode-credentials in ORKA_NAMESPACE
 
 Protected environment variables:
-  DASHBOARD_AI_TOKEN, ANALYZER_AI_TOKEN, OAUTH_CLIENT_SECRET, SESSION_KEY
+  DASHBOARD_AI_TOKEN, ANALYZER_AI_TOKEN, OAUTH_CLIENT_SECRET, SESSION_KEY,
+  OPENAI_BASE_URL, and optional OPENAI_API_KEY
 
 Unset variables are prompted without echo. Analyzer credentials are never copied
 from the dashboard namespace automatically.
@@ -100,6 +102,19 @@ case "$target" in
     apply_secret "$namespace" dashboard-oauth \
       --from-file="OAUTH_CLIENT_SECRET=$temp_dir/OAUTH_CLIENT_SECRET" \
       --from-file="SESSION_KEY=$temp_dir/SESSION_KEY"
+    ;;
+  opencode-credentials)
+    orka_namespace=${ORKA_NAMESPACE:-orka-system}
+    refuse_h100 "$orka_namespace"
+    kubectl --context "$context" get namespace "$orka_namespace" >/dev/null
+    write_secret_file OPENAI_BASE_URL 'OpenCode model base URL' "$temp_dir/OPENAI_BASE_URL"
+    secret_args=(--from-file="OPENAI_BASE_URL=$temp_dir/OPENAI_BASE_URL")
+    if [[ -n ${OPENAI_API_KEY:-} ]]; then
+      umask 077
+      printf '%s' "$OPENAI_API_KEY" > "$temp_dir/OPENAI_API_KEY"
+      secret_args+=(--from-file="OPENAI_API_KEY=$temp_dir/OPENAI_API_KEY")
+    fi
+    apply_secret "$orka_namespace" opencode-credentials "${secret_args[@]}"
     ;;
   *)
     fail "unknown secret target: $target"
