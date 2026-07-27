@@ -1,0 +1,14 @@
+controller:
+  watchNamespace: ""
+
+workers:
+  harnessWrapper:
+    auth:
+      existingSecret: ""
+      token: ""
+
+store:
+  persistence:
+    enabled: true
+    size: 1Gi
+    storageClass: ""
