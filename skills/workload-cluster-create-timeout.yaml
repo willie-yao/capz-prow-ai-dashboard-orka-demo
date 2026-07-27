@@ -1,0 +1,50 @@
+id: workload-cluster-create-timeout
+name: Workload cluster create timed out (private / ipv6 / Flatcar)
+description: |
+  Workload cluster create did not become Ready before the Ginkgo
+  timeout. Common across private-cluster, IPv6, dual-stack, and
+  Flatcar variants. The "timed out" line in build-log.txt is a
+  symptom; the root cause is whichever phase never finished
+  (control plane provisioning, CNI install, node bootstrap).
+
+priority: 100
+
+triggers:
+  - "(?i)workload\\s+cluster.*(timeout|timed?\\s*out)"
+  - "(?i)cluster.*never\\s+ready"
+  - "(?i)context\\s+deadline\\s+exceeded.*cluster"
+
+required_evidence:
+  - id: cluster-yaml
+    description: Cluster / AzureCluster status conditions
+    any_of:
+      - "artifacts/clusters/.*/Cluster/.*\\.ya?ml"
+      - "artifacts/clusters/.*/AzureCluster/.*\\.ya?ml"
+  - id: control-plane-log
+    description: Control plane machine bootstrap or kubelet log, OR KCP controller log
+    any_of:
+      - "artifacts/clusters/.*/machines/.*-control-plane.*/(cloud-init-output|kubelet|containerd)\\.log"
+      - "capi-kubeadm-control-plane-system/.*/manager\\.log"
+  - id: capz-or-capi-log
+    description: CAPZ / CAPI controller log
+    any_of:
+      - "capz-system/capz-controller-manager.*/manager\\.log"
+      - "capi-system/capi-controller-manager.*/manager\\.log"
+
+procedure: |
+  1. Read the Cluster YAML status.conditions. Identify which phase
+     stalled: ControlPlaneInitialized=false, ControlPlaneReady=false,
+     InfrastructureReady=false, or workers-only failure.
+  2. If ControlPlane never initialized: read the first control plane
+     machine cloud-init-output.log and kubelet.log. Was kubeadm init
+     ever reached? Was etcd ever healthy?
+  3. If ControlPlane initialized but Cluster not Ready: typically a
+     CNI install / addon issue. Check HelmChartProxy status (see
+     helm-chart-apply-failure recipe) or the CNI deployment.
+  4. If InfrastructureReady=false: Azure-side problem. Read the
+     AzureCluster YAML + azure-activity-logs.
+  5. Read the relevant CAPI/CAPZ controller log filtered for the
+     cluster name to see what reconcile was retrying.
+  6. Cite the specific failed phase + the artifact that proves it.
+     The suggested_fix should name what blocked the phase, not "raise
+     the timeout".

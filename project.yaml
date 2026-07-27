@@ -1,0 +1,70 @@
+# CAPZ consumer configuration for the Helm and Orka demo.
+
+id: capz-orka-demo
+name: "Cluster API Provider Azure Orka Demo"
+short_name: "CAPZ Orka Demo"
+
+# Discover CAPZ jobs from the public TestGrid dashboard configuration.
+testgrid:
+  dashboard: "sig-cluster-lifecycle-cluster-api-provider-azure"
+
+# First substring match wins. Unmatched jobs are grouped under "other".
+categories:
+  - match: "conformance"
+    id: "conformance"
+    label: "Conformance"
+  - match: "[managed kubernetes]"
+    id: "aks-e2e"
+    label: "AKS E2E"
+  - match: "e2e-aks"
+    id: "aks-e2e"
+    label: "AKS E2E"
+  - match: "capi-e2e"
+    id: "capi-e2e"
+    label: "CAPI E2E"
+  - match: "upgrade"
+    id: "upgrade"
+    label: "Upgrade"
+  - match: "coverage"
+    id: "coverage"
+    label: "Coverage"
+  - match: "scalability"
+    id: "scalability"
+    label: "Scalability"
+  - match: "e2e"
+    id: "capz-e2e"
+    label: "CAPZ E2E"
+
+category_display_order:
+  - capz-e2e
+  - aks-e2e
+  - upgrade
+  - capi-e2e
+  - conformance
+  - coverage
+  - scalability
+
+storage:
+  provider: gcs
+  bucket: "kubernetes-ci-logs"
+
+branding:
+  title: "CAPZ Prow AI Dashboard Orka Demo"
+  base_path: "/"
+  site_url: "https://capz-orka-demo.example.com"
+  source_repo:
+    owner: "kubernetes-sigs"
+    name: "cluster-api-provider-azure"
+
+# Helm owns the endpoint, model, and credentials. These settings tune the
+# dashboard-owned analyzer that runs inside Orka container Tasks.
+ai:
+  concurrency: 2
+  timeout: 45m
+  max_iters: 12
+  min_tool_calls: 5
+  min_gcs_bytes: 5000000
+  critique:
+    max_retries: 0
+  tools:
+    - filesystem

@@ -1,0 +1,44 @@
+id: controller-deployment-stuck
+name: Controller deployment not ready / pods CrashLoopBackOff
+description: |
+  A CAPI / CAPZ / ASO controller Deployment fails to become Ready
+  during bootstrap. Usually one pod is CrashLoopBackOff or
+  ImagePullBackOff, OR the deployment is Stuck=true with no available
+  replicas. Start with the failing Pod status, events, and manager
+  log rather than inferring the cause from upstream Cluster API status.
+
+priority: 140
+
+triggers:
+  - "(?i)(CrashLoopBackOff|ImagePullBackOff|ErrImagePull)"
+  - "(?i)deployment.*(not\\s+ready|stuck|0/[12]\\s+replicas)"
+  - "(?i)controller-manager.*(restart|backoff|crash)"
+
+required_evidence:
+  - id: controller-pod-log
+    description: manager.log from the failing controller pod
+    any_of:
+      - "(capi-system|capi-kubeadm-bootstrap-system|capi-kubeadm-control-plane-system|capz-system)/.*/manager\\.log"
+  - id: deployment-or-pod-yaml
+    description: Deployment / Pod YAML showing the failure state
+    any_of:
+      - "(capi-system|capz-system).*deployment.*\\.ya?ml"
+      - "(capi-system|capz-system).*pod.*\\.ya?ml"
+
+procedure: |
+  1. Identify the failing namespace and deployment from build-log.txt
+     (look for the namespace + "Deployment not ready" lines).
+  2. List the controller logs directory:
+     artifacts/clusters/bootstrap/logs/<namespace>/
+     Identify the failing pod (newest restart count).
+  3. Read the LAST 100-200 lines of that pod's manager.log. Look for:
+     - Panic stack traces.
+     - "OOMKilled" indication (also visible in pod yaml).
+     - leader-election failures (lease lost).
+     - dependency-not-ready errors (e.g. missing CRD).
+  4. If manager.log is empty, the pod never started: read the pod YAML
+     for image-pull errors, missing service account, secret mount
+     failure, or webhook admission rejection.
+  5. Name the specific log line + symptom in root_cause; the
+     suggested_fix should be the actual config / image / RBAC
+     edit needed.

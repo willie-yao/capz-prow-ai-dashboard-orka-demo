@@ -1,0 +1,55 @@
+id: azure-arm-throttling
+name: Azure ARM throttling / dropped resource operation (transient)
+description: |
+  An Azure control-plane (ARM) operation on a resource such as an
+  NSG, VNet, subnet, disk, or public IP returned explicit throttling
+  evidence or remained delayed after an accepted request. A missing
+  activity-log entry alone does not prove that Azure dropped a request:
+  the client may not have sent it, collection may be incomplete, or the
+  test may have selected the wrong resource. This recipe requires a
+  timestamped request attempt plus provider or SDK evidence before
+  classifying the failure as transient ARM throttling.
+
+priority: 150
+
+triggers:
+  - "(?i)\\b429\\b|too\\s+many\\s+requests|TooManyRequests"
+  - "(?i)throttl|rate\\s*limit|RetriableError|retry-after"
+  - "(?i)Timed\\s+out\\s+after\\s+\\d+.*Eventually"
+  - "(?i)(securityRules?|networkSecurityGroups?|subnets?|virtualNetworks?)\\b.*(delete|update|write|not\\s+found|still\\s+present)"
+
+required_evidence:
+  - id: azure-activity-log
+    description: The spec's workload-cluster ARM activity log (holds every accepted control-plane operation and its timestamp)
+    any_of:
+      - "artifacts/clusters/.*/azure-activity-logs/.*\\.log"
+  - id: build-log
+    description: Top-level build-log.txt showing the failing assertion and any explicit 429 / throttling message
+    any_of:
+      - "build-log\\.txt"
+      - ".*build-log\\.txt"
+
+procedure: |
+  1. Identify the resource and the operation the test expected (e.g.
+     delete of security rule "test-security-rule"), and the approximate
+     time the test initiated it, from build-log.txt.
+  2. Run verify_timeline on the spec's
+     artifacts/clusters/{cluster}/azure-activity-logs/{cluster}.log with
+     resource set to the resource name. This returns the ORDERED ARM
+     operations for that resource.
+  3. Decide from the timeline:
+     - If the requested operation appears with an explicit 429,
+       TooManyRequests, retry-after, or equivalent provider response,
+       classify it as transient throttling.
+     - If the operation never appears, confirm from the test, SDK, or
+       controller log that the request was attempted. Report the cause as
+       unresolved if that evidence is absent. Do not infer an Azure drop
+       solely from a missing activity-log entry.
+     - If the operation registered with a deterministic validation,
+       authorization, or configuration error, name that error and do not
+       classify it as transient throttling.
+  4. Also grep build-log.txt for an explicit 429 / TooManyRequests /
+     throttling message near the failure; if present it confirms the
+     transient classification.
+  5. Do not punt to "investigate the Azure SDK" or "check the
+     controller" without first reading the activity-log timeline.

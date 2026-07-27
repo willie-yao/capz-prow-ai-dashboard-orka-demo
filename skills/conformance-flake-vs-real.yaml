@@ -1,0 +1,44 @@
+id: conformance-flake-vs-real
+name: Conformance test failure (flake vs real bug)
+description: |
+  A conformance suite reports one or more failed specs. The failure
+  may be a transient infrastructure condition, a deterministic cluster
+  configuration problem, or a product regression. Disambiguate it from
+  the individual test message, workload-cluster evidence, and relevant
+  build history.
+
+priority: 90
+
+triggers:
+  - "(?i)\\[(Conformance|sig-[a-z-]+)\\]"
+  - "(?i)kubetest.*(failed|red|failing|panic)"
+  - "(?i)conformance\\s+(suite|tests?)\\s+.*\\b(failed|red|failures?|broken)\\b"
+  - "(?i)\\d+\\s+conformance\\s+tests?\\s+(failed|red)"
+
+required_evidence:
+  - id: junit-xml
+    description: Conformance suite junit output
+    any_of:
+      - "artifacts/.*/junit.*\\.xml"
+      - ".*conformance.*junit.*\\.xml"
+  - id: e2e-namespace-events
+    description: Workload-cluster test namespace events or pod logs
+    any_of:
+      - "artifacts/clusters/.*/(e2e|conformance|sonobuoy).*/.*"
+
+procedure: |
+  1. Read the junit XML to enumerate failing test names + the
+     captured failure message for each. Do NOT summarize at the
+     "5 tests failed" level: pick a representative failure with
+     a non-empty message.
+  2. Inspect the failure stack / message. If it contains "timed
+     out waiting", check whether the underlying resource appears in
+     the workload-cluster events / pod logs.
+  3. Compare against well-known CAPZ conformance flake patterns:
+     - LoadBalancer service eventual provisioning lag
+     - Slow image pull on first scheduling
+     - Network policy propagation lag
+  4. Conclude EITHER: (a) the failure is a known flake pattern and
+     the recommendation is to monitor / re-run, OR (b) it is a real
+     bug: name the component + cite the specific log evidence.
+     Do not punt to "investigate the failing tests".

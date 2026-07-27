@@ -1,0 +1,41 @@
+id: cluster-cleanup-stuck
+name: Cluster deletion / cleanup stuck on finalizers
+description: |
+  Cluster or workload-cluster resource fails to delete cleanly.
+  Usually a finalizer is stuck because an underlying Azure resource
+  failed to delete (network with running NICs, role assignment
+  referencing a missing principal, etc.). Diagnostic path is the
+  resource YAML + the capz-controller-manager log for the cleanup
+  reconcile.
+
+priority: 80
+
+triggers:
+  - "(?i)deletion.*timestamp.*\\d"
+  - "(?i)finalizer.*(stuck|blocking|held)"
+  - "(?i)cleanup.*(timeout|fail|hang)"
+
+required_evidence:
+  - id: stuck-resource-yaml
+    description: YAML of the resource with deletionTimestamp + finalizers
+    any_of:
+      - "artifacts/clusters/.*/(Cluster|Azure[A-Z][a-zA-Z]+)/.*\\.ya?ml"
+  - id: capz-controller-log
+    description: capz-controller-manager log for the deletion reconcile
+    any_of:
+      - "capz-system/capz-controller-manager.*/manager\\.log"
+
+procedure: |
+  1. Identify the resource(s) stuck deleting from build-log.txt and
+     read their YAML. Note metadata.finalizers, metadata.deletionTimestamp,
+     and status conditions.
+  2. Read the capz-controller-manager log filtered for the stuck
+     resource name. Look for the cleanup reconcile retrying with a
+     specific Azure API error (e.g. "Subnet ... cannot be deleted
+     because it has resources").
+  3. Identify the blocking Azure resource (NIC, NSG, role
+     assignment, public IP) and cite it.
+  4. The suggested_fix should name the blocking resource or the
+     controller behavior proven by the reconcile log. Do not recommend
+     manual finalizer removal without showing why normal cleanup cannot
+     complete.
