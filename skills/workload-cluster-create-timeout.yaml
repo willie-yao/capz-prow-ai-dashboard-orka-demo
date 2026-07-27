@@ -31,6 +31,15 @@ required_evidence:
       - "capz-system/capz-controller-manager.*/manager\\.log"
       - "capi-system/capi-controller-manager.*/manager\\.log"
 
+  - id: azure-activity-log
+    description: |
+      Azure activity log when the draft attributes the timeout to Azure
+      infrastructure.
+    when:
+      - '(?i)InfrastructureReady\s*=\s*false|AzureCluster|Azure (API|infrastructure|provisioning)|QuotaExceeded|SkuNotAvailable|AllocationFailed'
+    any_of:
+      - 'artifacts/clusters/.*/azure-activity-logs/.*\.log'
+
 procedure: |
   1. Read the Cluster YAML status.conditions. Identify which phase
      stalled: ControlPlaneInitialized=false, ControlPlaneReady=false,

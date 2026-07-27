@@ -3,9 +3,9 @@ name: CAPZ webhook TLS / x509 verification failure
 description: |
   CAPZ admission/validation webhook calls fail with x509
   certificate-signed-by-unknown-authority errors during cluster
-  bootstrap or template application. Canonical CAPZ symptom that
-  cascades into context-deadline-exceeded on AzureCluster /
-  AzureMachineTemplate creation. Dominant failure pattern in the
+  bootstrap or template application. It can cascade into
+  context-deadline-exceeded errors while creating AzureCluster or
+  AzureMachineTemplate resources.
 
 priority: 200
 
@@ -19,7 +19,7 @@ required_evidence:
   - id: webhook-config
     description: cert-manager Certificate / Issuer config or webhook manifest
     any_of:
-      - "config/(cert|web)manager/.*\\.ya?ml"
+      - "config/certmanager/.*\\.ya?ml"
       - "config/webhook/.*\\.ya?ml"
       - "validatingwebhookconfiguration"
       - "mutatingwebhookconfiguration"

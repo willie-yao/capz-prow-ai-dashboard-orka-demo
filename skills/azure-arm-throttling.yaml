@@ -33,10 +33,9 @@ procedure: |
   1. Identify the resource and the operation the test expected (e.g.
      delete of security rule "test-security-rule"), and the approximate
      time the test initiated it, from build-log.txt.
-  2. Run verify_timeline on the spec's
-     artifacts/clusters/{cluster}/azure-activity-logs/{cluster}.log with
-     resource set to the resource name. This returns the ORDERED ARM
-     operations for that resource.
+  2. Read the cluster Azure activity log and reconstruct the ordered
+     operations for that resource around the failure window. Compare the
+     request timestamp, accepted operations, response codes, and retries.
   3. Decide from the timeline:
      - If the requested operation appears with an explicit 429,
        TooManyRequests, retry-after, or equivalent provider response,
