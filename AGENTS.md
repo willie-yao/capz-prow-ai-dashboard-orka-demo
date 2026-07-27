@@ -39,7 +39,7 @@ credential access.
 - Use one-line conventional commit subjects.
 - Run focused validation and the repository validation workflow before opening
   a pull request.
-- Complete CI and Copilot review before merging dependent work.
+- Complete CI before merging dependent work. GitHub reviewer requests are optional.
 
 ## Configuration conventions
 

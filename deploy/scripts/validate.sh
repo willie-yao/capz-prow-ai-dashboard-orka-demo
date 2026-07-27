@@ -8,7 +8,6 @@ source "$SCRIPT_DIR/lib.sh"
 require_command bash
 require_command grep
 require_command helm
-require_command shasum
 
 load_versions
 temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/capz-orka-validate.XXXXXX")
