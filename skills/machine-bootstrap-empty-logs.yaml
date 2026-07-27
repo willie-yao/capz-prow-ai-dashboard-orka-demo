@@ -1,0 +1,54 @@
+id: machine-bootstrap-empty-logs
+name: Machine bootstrap failure with empty cloud-init / kubelet logs
+description: |
+  An AzureMachine fails to provision and its
+  cloud-init-output.log / kubelet.log under
+  artifacts/clusters/<cluster>/machines/<machine>/ are
+  zero-byte or near-empty. This can mean the virtual machine never
+  reached cloud-init or kubelet, but it can also mean artifact
+  collection could not reach the machine. Use AzureMachine conditions,
+  activity logs, and collector errors to distinguish provisioning from
+  collection failure before assigning the root cause.
+
+priority: 150
+
+triggers:
+  - "(?i)cloud-init.*(empty|0\\s*bytes|0-byte)"
+  - "(?i)kubelet.*log.*(empty|0\\s*bytes)"
+  - "(?i)machine.*bootstrap.*fail"
+  - "(?i)(name resolution|ssh.*rejected|connect failed).*machine"
+
+required_evidence:
+  - id: azuremachine-yaml
+    description: AzureMachine resource YAML with status conditions / FailureMessage
+    any_of:
+      - "artifacts/clusters/.*/AzureMachine/.*\\.ya?ml"
+      - "artifacts/clusters/.*/machines/.*/AzureMachine.*"
+  - id: azure-activity-log
+    description: Azure activity log for the cluster resource group
+    any_of:
+      - "artifacts/clusters/.*/azure-activity-logs/.*\\.log"
+  - id: capz-controller-log
+    description: capz-controller-manager log filtered for the failing machine
+    any_of:
+      - "capz-system/capz-controller-manager.*/manager\\.log"
+      - "capz-system/.*controller-manager.*\\.log"
+
+procedure: |
+  1. Identify the failing machine name from build-log.txt and from
+     the directory listing under artifacts/clusters/<cluster>/machines/.
+  2. Read the AzureMachine YAML for that machine. Look at:
+     - status.conditions (VMProvisioned, BootstrapReady, etc.)
+     - status.failureMessage / status.failureReason
+     - spec.image (gallery image reference)
+  3. Read the azure-activity-logs/<cluster>.log filtered for the
+     VM resource name. Look for SkuNotAvailable,
+     OperationNotAllowed, QuotaExceeded, or VM provisioningState
+     Failed entries.
+  4. Read the capz-controller-manager manager.log filtered for the
+     failing machine name. Look for the reconcile loop emitting the
+     specific Azure API error.
+  5. Synthesize: the root cause is whatever AzureMachine.status or
+     activity log reports as the upstream failure. Do NOT punt to
+     "investigate Azure VM provisioning": the activity log usually
+     contains the exact reason.

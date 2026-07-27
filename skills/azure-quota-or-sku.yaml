@@ -1,0 +1,41 @@
+id: azure-quota-or-sku
+name: Azure quota / SKU availability failure
+description: |
+  Azure-side quota, SKU, policy, or allocation failure such as
+  QuotaExceeded, SkuNotAvailable, OperationNotAllowed, or
+  AllocationFailed. Persistent quota and SKU constraints are not CAPZ
+  bugs and are not transient by default. Some allocation failures may
+  be transient when the provider response and later activity support
+  that classification.
+
+priority: 160
+
+triggers:
+  - "(?i)QuotaExceeded|OperationNotAllowed"
+  - "(?i)SkuNotAvailable"
+  - "(?i)AllocationFailed"
+  - "(?i)not\\s+available\\s+in\\s+(location|region|zone)"
+
+required_evidence:
+  - id: azuremachine-or-pool-yaml
+    description: AzureMachine or AzureMachinePool YAML with status.failureMessage
+    any_of:
+      - "artifacts/clusters/.*/AzureMachine(Pool|Template)?/.*\\.ya?ml"
+  - id: azure-activity-log
+    description: Azure activity log for the cluster
+    any_of:
+      - "artifacts/clusters/.*/azure-activity-logs/.*\\.log"
+
+procedure: |
+  1. Read the AzureMachine(Pool) YAML for the failing resource.
+     status.failureMessage usually contains the exact Azure error
+     code + the resource (vm-size, zone, region).
+  2. Read azure-activity-logs/<cluster>.log filtered for the
+     resource. The activity log shows the precise quota or sku
+     constraint hit, with the requested quantity vs the limit.
+  3. Determine whether the suggested fix is:
+     - Request a quota increase (cite the exact metric).
+     - Pick a different SKU / region in the cluster template.
+     - Retry: but only if the error is documented as transient
+       (e.g. transient AllocationFailed). Most are not.
+  4. Cite the specific Azure error code, resource, and constraint in root_cause.

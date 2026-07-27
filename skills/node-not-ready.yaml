@@ -1,0 +1,47 @@
+id: node-not-ready
+name: Node stays NotReady (kubelet / CNI / runtime)
+description: |
+  A workload-cluster Node never reaches Ready state. The three
+  layers to inspect are kubelet, container runtime (containerd /
+  cri-o), and the CNI. Pattern is common on private / dual-stack
+  / Flatcar clusters where bootstrap variation hits the most edge
+  cases.
+
+priority: 110
+
+triggers:
+  - "(?i)node.*NotReady"
+  - "(?i)kubelet.*(fail|error)"
+  - "(?i)NetworkUnavailable"
+
+required_evidence:
+  - id: kubelet-log
+    description: Node kubelet.log
+    any_of:
+      - "artifacts/clusters/.*/machines/.*/kubelet\\.log"
+  - id: runtime-log
+    description: containerd or cri-o log on the failing node
+    any_of:
+      - "artifacts/clusters/.*/machines/.*/(containerd|crio)\\.log"
+  - id: cni-pod-log
+    description: CNI pod log inside the workload cluster
+    any_of:
+      - "artifacts/clusters/.*/(calico-system|kube-system|cilium-system).*/.*\\.log"
+
+procedure: |
+  1. Identify the NotReady node name from build-log.txt or from the
+     Cluster YAML status.
+  2. Read the last 200 lines of that node's kubelet.log. Look for:
+     - "container runtime is not running"
+     - "Container runtime network not ready: NetworkReady=false"
+     - "Failed to start ContainerManager"
+     - certificate / CSR errors during kubelet client startup
+  3. If the runtime is implicated, read the matching containerd.log /
+     crio.log. Common causes: image-pull misconfiguration, CRI
+     socket-path mismatch, OOM.
+  4. If the network is implicated, read the CNI pod log inside the
+     workload cluster (calico-node, calico-kube-controllers).
+     Common cause: IPAM not initialized, BGP peering failure,
+     CRDs missing.
+  5. Synthesize at the right layer: kubelet symptom is usually
+     downstream of runtime or CNI. Name the actionable component.

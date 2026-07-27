@@ -1,0 +1,62 @@
+id: external-fetch-failure
+name: External dependency fetch failure (GitHub, ghcr, registry)
+description: |
+  A test setup phase failed to fetch a build dependency from an
+  external service (GitHub release, ghcr.io image, k8s.io registry,
+  golang.org/x module proxy, etc.). Symptoms: HTTP 5xx from the
+  external service, DNS resolution failures, TCP timeouts, invalid
+  URLs, missing tags, or authentication failures. Provider 5xx and
+  short-lived DNS or transport failures may be transient. Invalid
+  references, missing artifacts, and authorization failures are
+  deterministic until configuration changes. The recipe keeps these
+  failures at the external dependency boundary instead of fabricating
+  a CAPZ controller root cause.
+
+priority: 180
+
+triggers:
+  - "(?i)SynchronizedBeforeSuite"
+  - "(?i)(502|503|504)\\s+(Bad\\s+Gateway|Service\\s+Unavailable|Gateway\\s+Timeout)"
+  - "(?i)(github\\.com|ghcr\\.io|registry\\.k8s\\.io|gcr\\.io|quay\\.io|docker\\.io).*(?:dial tcp|EOF|connection refused|TLS handshake timeout|no such host)"
+  - "(?i)Temporary\\s+failure\\s+in\\s+name\\s+resolution"
+  - "(?i)ssh:?\\s+rejected:?\\s+connect\\s+failed"
+
+required_evidence:
+  - id: build-log
+    description: Top-level build-log.txt showing the failing fetch / suite-setup line
+    any_of:
+      - "build-log\\.txt"
+      - ".*build-log\\.txt"
+  - id: test-runner-output
+    description: Any artifact that captures the setup-phase output (ginkgo, kubetest, junit)
+    any_of:
+      - "artifacts/.*junit.*\\.xml"
+      - "artifacts/.*setup.*\\.log"
+      - "artifacts/.*ginkgo.*\\.log"
+
+procedure: |
+  1. Read build-log.txt around the failing setup line. The exact
+     HTTP status code, hostname, and path are usually printed
+     verbatim (e.g. "Get https://github.com/.../releases/download/...:
+     502 Bad Gateway"). Quote it verbatim in root_cause.
+  2. Confirm the failure is a fetch / setup phase, not a real test
+     assertion. Setup failures appear before any [It] block runs
+     (SynchronizedBeforeSuite, BeforeSuite, or top-level kubetest
+     setup).
+  3. Determine the upstream service:
+     - github.com 5xx → GitHub outage (check status.github.com)
+     - ghcr.io / docker.io 5xx → registry outage
+     - registry.k8s.io / k8s.gcr.io 5xx → k8s registry outage
+     - "Temporary failure in name resolution" → DNS outage on the
+       test runner (usually transient, but check kube-system DNS
+       if the failure is on a workload cluster)
+     - "ssh: rejected" → typically a follow-on of a VM that never
+       got network (see machine-bootstrap-empty-logs recipe)
+  4. Classify explicit provider 5xx, temporary DNS, or short-lived
+     transport failures as transient when the timeline supports
+     recovery. Classify 401/403, missing tags or releases, invalid URLs,
+     and repeated deterministic failures as non-transient until the
+     dependency or configuration is corrected.
+  5. Name the external service and exact error. Recommend a retry only
+     for evidence-backed transient outages. Otherwise name the
+     reference, credential, mirror, or dependency change required.

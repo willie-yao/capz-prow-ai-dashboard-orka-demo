@@ -1,0 +1,54 @@
+id: webhook-tls-failure
+name: CAPZ webhook TLS / x509 verification failure
+description: |
+  CAPZ admission/validation webhook calls fail with x509
+  certificate-signed-by-unknown-authority errors during cluster
+  bootstrap or template application. It can cascade into
+  context-deadline-exceeded errors while creating AzureCluster or
+  AzureMachineTemplate resources.
+
+priority: 200
+
+triggers:
+  - "(?i)x509:?\\s*certificate"
+  - "(?i)tls:?\\s*failed\\s+to\\s+verify"
+  - "(?i)webhook.*tls"
+  - "(?i)capz-webhook-service"
+
+required_evidence:
+  - id: webhook-config
+    description: cert-manager Certificate / Issuer config or webhook manifest
+    any_of:
+      - "config/certmanager/.*\\.ya?ml"
+      - "config/webhook/.*\\.ya?ml"
+      - "validatingwebhookconfiguration"
+      - "mutatingwebhookconfiguration"
+  - id: capz-controller-log
+    description: capz-controller-manager log around the webhook reject window
+    any_of:
+      - "capz-system/capz-controller-manager.*/manager\\.log"
+      - "capz-system/.*controller-manager.*\\.log"
+
+procedure: |
+  1. Identify the failing webhook endpoint and the exact resource
+     kind from build-log.txt (e.g. validate-infrastructure-cluster-x-k8s-io-v1beta1-azurecluster).
+  2. Read the cert-manager Certificate that backs the webhook server cert
+     (look under config/certmanager/ or config/webhook/certmanager/).
+     Confirm dnsNames cover the webhook Service DNS
+     (capz-webhook-service.capz-system.svc).
+  3. Read the capz-controller-manager manager.log around the failure
+     window. Look for "certificate signed by unknown authority" on
+     the SERVER side, or for the webhook server failing to load its
+     cert at startup (file-not-found, secret-not-mounted).
+  4. Determine whether the root cause is:
+     - cert-manager Certificate misconfiguration (wrong dnsNames /
+       wrong issuer ref), OR
+     - webhook secret never mounted into the controller pod, OR
+     - cert-manager controller itself failing (read its manager.log
+       in the bootstrap cluster), OR
+     - kube-apiserver trust bundle missing the CA (rare; only when
+       bootstrap cluster CA setup itself failed).
+  5. Cite the file + line of the actionable misconfiguration in
+     root_cause. The suggested_fix should name the exact YAML edit
+     (e.g. "add `capz-webhook-service.capz-system.svc.cluster.local`
+     to config/certmanager/certificate.yaml dnsNames").

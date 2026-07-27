@@ -1,0 +1,46 @@
+id: helm-chart-apply-failure
+name: HelmChartProxy / addon install failed (Calico, AKS extension)
+description: |
+  Cluster API Addon Provider Helm (CAAPH) fails to install a chart
+  (commonly Calico, kube-vip, AKS extensions). The cluster reports
+  ControlPlaneReady=true but never becomes fully Ready because nodes
+  remain NotReady waiting on the CNI.
+
+priority: 110
+
+triggers:
+  - "(?i)HelmChartProxy"
+  - "(?i)(calico|kube-vip|cilium).*(install|apply).*fail"
+  - "(?i)helm.*(install|upgrade).*fail"
+
+required_evidence:
+  - id: hcp-yaml
+    description: HelmChartProxy / HelmReleaseProxy status conditions
+    any_of:
+      - "artifacts/clusters/.*/HelmChartProxy/.*\\.ya?ml"
+      - "artifacts/clusters/.*/HelmReleaseProxy/.*\\.ya?ml"
+  - id: caaph-controller-log
+    description: caaph / addon-provider-helm controller log
+    any_of:
+      - "caaph-system/.*/manager\\.log"
+      - "addon-helm.*/manager\\.log"
+  - id: workload-cluster-addon-log
+    description: Failing addon pod log inside the workload cluster
+    any_of:
+      - "artifacts/clusters/.*/(calico-system|kube-system|kube-vip).*/.*\\.log"
+
+procedure: |
+  1. Read the HelmChartProxy YAML for the failing chart. Status
+     conditions name the phase (TemplateRendered, Installed,
+     Upgraded). Identify which one is false + why.
+  2. Read the caaph controller log filtered for the chart name.
+     Look for template-render errors, value-substitution errors,
+     or "release exists" / lock failures.
+  3. If the chart did install: read the addon pod log inside the
+     workload cluster (e.g. calico-kube-controllers).
+     CrashLoopBackOff at this layer usually means the workload
+     cluster apiserver / network is misconfigured upstream.
+  4. The fix is either a HelmChartProxy spec edit (wrong version,
+     wrong values), a missing identity / secret in the workload
+     cluster, or an upstream cluster networking issue. Cite the
+     exact failed step.
