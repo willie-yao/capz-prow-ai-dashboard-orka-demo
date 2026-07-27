@@ -1,0 +1,39 @@
+.DS_Store
+.idea/
+.vscode/
+
+# Local environment and credentials
+.env
+.env.local
+.env.*.local
+*.kubeconfig
+kubeconfig
+kubeconfig.*
+*.token
+*.key
+*.pem
+values-local.yaml
+values-cluster.yaml
+deploy/values-local.yaml
+deploy/values-cluster.yaml
+deploy/secrets.yaml
+deploy/secret-values.yaml
+deploy/*-secrets.yaml
+
+# Generated dashboard and private state
+data/
+frontend/public/data/
+**/ai_cache.json
+**/ai_traces.json
+**/notification_state.json
+**/remediation_state.json
+**/analysis_chat_sessions.json
+
+# Local Helm and acceptance output
+*.tgz
+*.log
+*.bak
+deploy/.rendered/
+deploy/evidence/
+evidence/
+artifacts/
