@@ -68,3 +68,30 @@ ai:
     max_retries: 0
   tools:
     - filesystem
+  fix_prs:
+    enabled: true
+    repo:
+      owner: kubernetes-sigs
+      name: cluster-api-provider-azure
+    fork: true
+    author_name: "Replace With CLA-Signed Contributor"
+    author_email: "replace-with-cla-email@example.com"
+    min_confidence: high
+    max_files: 3
+    max_new_per_run: 1
+    dry_run: true
+    agent_runtime:
+      type: orka
+      agent_ref: opencode-fixer
+      api: http://orka.orka-system.svc.cluster.local:8080
+      namespace: orka-system
+      version: v1
+      retries: 1
+      max_turns: 30
+      allow_bash: true
+      timeout: 30m
+
+# The batch path stays dry-run and receives no FIX_TOKEN in the base deployment.
+# The optional authenticated-actions overlay enables on-demand preview generation.
+# Replace the commit author placeholders with a CLA-signed identity before any
+# final GitHub confirmation.

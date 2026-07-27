@@ -1,0 +1,16 @@
+apiVersion: core.orka.ai/v1alpha1
+kind: Agent
+metadata:
+  name: opencode-fixer
+  namespace: orka-system
+spec:
+  model:
+    name: replace-with-provider/model-id
+  systemPrompt:
+    inline: "Follow the Task prompt and make only the requested code change."
+  secretRef:
+    name: opencode-credentials
+  runtime:
+    type: opencode
+    defaultMaxTurns: 30
+    defaultAllowBash: true

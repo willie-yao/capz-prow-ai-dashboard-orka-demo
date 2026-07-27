@@ -64,8 +64,12 @@ fi
 
 base_render="$temp_dir/base.yaml"
 scheduled_render="$temp_dir/scheduled.yaml"
+actions_render="$temp_dir/actions.yaml"
 "$SCRIPT_DIR/render.sh" --output "$base_render"
 "$SCRIPT_DIR/render.sh" --allow-scheduled --values "$DEPLOY_DIR/values-scheduled.yaml" --output "$scheduled_render"
+if [[ -f $DEPLOY_DIR/values-actions.yaml ]]; then
+  "$SCRIPT_DIR/render.sh" --values "$DEPLOY_DIR/values-actions.yaml" --output "$actions_render"
+fi
 
 grep -Fq 'suspend: true' "$base_render"
 grep -Fq 'suspend: false' "$scheduled_render"
@@ -81,8 +85,21 @@ grep -Fq 'resources: ["configmaps"]' "$base_render"
 grep -Fq 'kind: ValidatingAdmissionPolicy' "$base_render"
 grep -Fq "image: ghcr.io/willie-yao/prow-ai-dashboard:v$DASHBOARD_CHART_VERSION" "$base_render"
 grep -Fq -- "-orka-analysis-image=ghcr.io/willie-yao/prow-ai-dashboard/analyzer:v$DASHBOARD_CHART_VERSION" "$base_render"
-if grep -Fq 'ACTIONS_ENABLE' "$base_render"; then
+if grep -Fq 'ACTIONS_ENABLED' "$base_render"; then
   fail "write actions are enabled in the base render"
+fi
+
+if [[ -f $DEPLOY_DIR/values-actions.yaml ]]; then
+  grep -Fq 'name: ACTIONS_ENABLED' "$actions_render"
+  grep -Fq 'value: "true"' "$actions_render"
+  grep -Fq 'name: OAUTH_CLIENT_ID' "$actions_render"
+  grep -Fq "image: ghcr.io/willie-yao/prow-ai-dashboard/fixer:v$DASHBOARD_CHART_VERSION" "$actions_render"
+  grep -Fq 'app.kubernetes.io/component: orka-fix-runtime' "$actions_render"
+  grep -Fq 'resources: ["tasks"]' "$actions_render"
+  grep -Fq 'name: ORKA_API_TOKEN_FILE' "$actions_render"
+  if grep -Eq '^[[:space:]]*- name: ORKA_API_TOKEN$' "$actions_render"; then
+    fail "actions render uses a static Orka API token"
+  fi
 fi
 
 info "validation passed"

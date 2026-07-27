@@ -1,0 +1,21 @@
+server:
+  chat:
+    enabled: true
+    timeout: 30m
+  actions:
+    enabled: true
+    mode: oauth
+    admins:
+      - replace-with-github-login
+    oauth:
+      clientId: replace-with-oauth-client-id
+      redirectUrl: https://capz-orka-demo.example.com/api/auth/callback
+      existingSecret: dashboard-oauth
+
+orka:
+  fixRuntime:
+    enabled: true
+    image:
+      repository: ghcr.io/willie-yao/prow-ai-dashboard/fixer
+      tag: v1.0.0-beta.6
+      pullPolicy: IfNotPresent

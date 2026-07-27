@@ -283,6 +283,30 @@ success. It never prints file contents.
 Browser validation and authenticated chat checks are performed after the server
 is port-forwarded and the dedicated demo OAuth callback is reachable.
 
+## Optional authenticated actions and fix previews
+
+The base release keeps writes disabled. The optional
+[`values-actions.yaml`](values-actions.yaml) overlay enables GitHub OAuth actions
+and the Orka fix runtime while retaining the suspended fetch schedule.
+
+Render it without applying:
+
+```bash
+deploy/scripts/render.sh \
+  --values deploy/values-actions.yaml \
+  --output deploy/.rendered/actions.yaml
+```
+
+The overlay does not contain an OAuth secret, session key, real client ID,
+callback host, or administrator login. Supply those through the same environment
+overrides used by the base deployment. The OpenCode Agent and credential
+boundary are documented in [`orka/README.md`](orka/README.md).
+
+The project fix configuration uses fork mode, dry-run batch generation, and
+placeholder CLA author identity. Replace that identity before any final GitHub
+confirmation. Acceptance must stop at the preview and must not create a CAPZ
+issue or pull request.
+
 ## Scheduling promotion
 
 [`values-scheduled.yaml`](values-scheduled.yaml) contains only:
