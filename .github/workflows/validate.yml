@@ -164,7 +164,8 @@ jobs:
               'deploy/orka/versions.env', 'deploy/orka/values.yaml',
               'deploy/orka/install.sh', 'deploy/orka/validate.sh',
               'deploy/orka/package-source.sh', 'deploy/orka/upgrade.sh',
-              'deploy/orka/uninstall.md',
+              'deploy/orka/uninstall.md', 'deploy/orka/create-agent-secret.sh',
+              'deploy/orka/verify-agent.sh',
               'deploy/scripts/preflight.sh', 'deploy/scripts/render.sh',
               'deploy/scripts/install.sh', 'deploy/scripts/create-secrets.sh',
               'deploy/scripts/run-once.sh', 'deploy/scripts/validate.sh',
@@ -286,6 +287,17 @@ jobs:
             kubectl --context "$context" wait \
               --for=condition=Established --timeout=60s "crd/$crd"
           done
+          kubectl --context "$context" apply --dry-run=server \
+            -f deploy/orka/opencode-agent.yaml >/dev/null
+          OPENAI_BASE_URL=http://model.example.invalid/v1 \
+          OPENAI_API_KEY=dummy-ci-key \
+            deploy/orka/create-agent-secret.sh --context "$context" --yes
+          OPENAI_BASE_URL=http://model.example.invalid/v1 \
+            deploy/orka/create-agent-secret.sh \
+              --context "$context" --no-api-key --yes
+          kubectl --context "$context" --namespace orka-system get \
+            secret/opencode-credentials -o json | \
+            jq -e '(.data | keys) == ["OPENAI_BASE_URL"]' >/dev/null
           source deploy/orka/versions.env
           deploy/orka/upgrade.sh \
             --context "$context" \

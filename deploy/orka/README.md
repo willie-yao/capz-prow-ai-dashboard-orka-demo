@@ -98,6 +98,29 @@ Use one Orka controller release per namespace. Multiple releases require unique
 release names, isolated controller namespaces, and distinct non-empty watch
 namespaces. Never combine a cluster-wide watcher with namespace-scoped releases.
 
-OpenCode Agent setup remains a separate operator step. See
-[`opencode-agent.yaml`](opencode-agent.yaml). Model credentials and the Agent are
-not created by the Orka installer.
+## OpenCode Agent setup
+
+Model credentials and Agent definitions remain explicit operator-owned resources.
+Edit only `spec.model.name` in [`opencode-agent.yaml`](opencode-agent.yaml) to
+match the endpoint-specific model ID, then run:
+
+```bash
+export OPENAI_BASE_URL=https://<provider-endpoint>/v1
+export OPENAI_API_KEY=<optional-secret>
+deploy/orka/create-agent-secret.sh --context <non-production-context>
+kubectl --context <non-production-context> apply \
+  -f deploy/orka/opencode-agent.yaml
+deploy/orka/verify-agent.sh --context <non-production-context>
+```
+
+The Secret script accepts protected environment variables or prompts securely,
+uses mode-0600 temporary files, and never prints credential values. Use
+`--no-api-key` for an unauthenticated endpoint. The verification script requires
+the Agent to be Ready at its current generation, confirms the `opencode`
+runtime, model name, and Secret reference, and refuses to pass while the Agent
+has an active Task.
+
+The Agent receives model credentials only. A private source repository requires
+a separate read-only clone credential. Never give the Agent the dashboard's
+GitHub write token. Do not create a real issue or pull request during Agent
+validation.
