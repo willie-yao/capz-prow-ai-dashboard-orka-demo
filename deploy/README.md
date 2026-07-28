@@ -1,10 +1,11 @@
-# Helm and Orka deployment track
+# Orka-first Helm deployment track
 
 This directory deploys the CAPZ consumer with the public
 [`prow-ai-dashboard`](https://github.com/willie-yao/prow-ai-dashboard) Helm
-chart. The base configuration is suspended, uses a fresh retained ReadWriteMany
-PVC, enables experimental Orka container analysis, enables authenticated chat
-and traces, and disables GitHub write actions.
+chart. Orka is installed separately as a cluster-level Helm release before the
+dashboard. The base dashboard configuration is suspended, uses a fresh retained
+ReadWriteMany PVC, enables experimental Orka container analysis, enables
+authenticated chat and traces, and disables GitHub write actions.
 
 ## Safety state
 
@@ -17,6 +18,7 @@ The checked-in base state is intentionally inert:
 - ClusterIP service only
 - GitHub write actions disabled
 - Orka fix generation disabled
+- Orka installation is a separate explicit operator action
 - no static Orka result API Secret
 - no committed Secret values
 
@@ -38,39 +40,93 @@ The first-run script reserves and creates at most one manual fetch Job.
   `sha256:bf6fd8e8eefc5b35b51d7ba4583f68d0139c3d8f4b819cb5be1c721301b13195`
 - fixer image digest
   `sha256:96253e557f22c46fe894e8bb23d1d76cef86a6b47034e0434affd0454fa6f052`
+- minimum Orka source commit
+  `fde3b7925c367784570fcc36d7a5b3a51747bf10`
 
-The values file uses the exact `v1.0.0-beta.6` image tags. The render and install
-scripts pull the exact chart version and reject a chart digest mismatch.
+The dashboard values file uses exact `v1.0.0-beta.6` image tags. The dashboard
+render and install scripts pull the exact chart version and reject a chart
+digest mismatch. Separate Orka pins live in [`orka/versions.env`](orka/versions.env).
 
-## Orka prerequisite
+## Separate Orka prerequisite
 
-This repository does not install, upgrade, or modify Orka. A cluster operator
-must provide Orka built from exactly:
+The dashboard chart does not install Orka. The cluster operator explicitly runs
+the tools in [`orka/`](orka/) to install release `orka` in namespace
+`orka-system`, validate it, create the OpenCode credential Secret, apply the
+Agent, and confirm Agent readiness.
+
+A verified Orka release must contain commit:
 
 ```text
-d03acb995b6014a6e855181c50b922b65ea8e7ff
+fde3b7925c367784570fcc36d7a5b3a51747bf10
 ```
 
-There is no tagged Orka release containing the required OpenCode integration at
-the time of this reference. The deployed Orka workloads must expose the short or
-full commit in an image tag, label, annotation, or environment value so
-`preflight.sh` can verify it.
+That commit contains the generated Helm chart, all 12 CRDs, guarded CRD upgrade
+procedure, complete AgentRuntime and SubstrateActorPool RBAC, worker identities,
+harness wrapper, persistent store, and OpenCode runtime. No Orka tag or GitHub
+release exists as of July 28, 2026. The normal installer therefore fails closed.
+The source-commit path packages the chart only for maintainer lint, render, and
+temporary kind validation. It is not approved for a cloud cluster because no
+matching released runtime images exist.
 
-The operator-managed installation must provide:
+When a verified release is available, the operator runs:
 
-- `tasks.core.orka.ai`
-- `agents.core.orka.ai`
-- Agent runtime type `opencode`
-- an Orka REST result Service
-- ready Service endpoints
-- container Task support
-- Task result authorization for Kubernetes ServiceAccount tokens
+```bash
+deploy/orka/install.sh --context "$KUBE_CONTEXT"
+deploy/orka/validate.sh --context "$KUBE_CONTEXT"
+```
 
-The preflight also verifies that the cluster supports
-`ValidatingAdmissionPolicy`. The chart creates a release-scoped analysis
-namespace, Task and ConfigMap RBAC, a restricted admission policy, and a
-release-scoped ServiceAccount. Live Task authorization is verified after Helm
-creates those resources.
+Then edit only the model name in `orka/opencode-agent.yaml` and run:
+
+```bash
+deploy/orka/create-agent-secret.sh --context "$KUBE_CONTEXT"
+kubectl --context "$KUBE_CONTEXT" apply \
+  -f deploy/orka/opencode-agent.yaml
+deploy/orka/verify-agent.sh --context "$KUBE_CONTEXT"
+```
+
+The installation must provide ready Orka Services and controller workloads,
+container Task support, projected ServiceAccount result authorization, and a
+Ready `opencode-fixer` Agent before dashboard preflight. The Orka validation
+script checks all 12 CRDs and the controller RBAC. Dashboard preflight then
+checks the task and Agent schemas, REST Service endpoints, required source
+marker, model Service, admission policy support, and rendered least-privilege
+RBAC.
+
+## Orka-first sequence
+
+Run the stages separately. No dashboard command invokes an Orka command. Export
+the cluster-specific and protected inputs documented below before dashboard
+preflight:
+
+```bash
+export KUBE_CONTEXT=<non-production-context>
+
+# Cluster-level Orka release
+deploy/orka/install.sh --context "$KUBE_CONTEXT"
+deploy/orka/validate.sh --context "$KUBE_CONTEXT"
+
+# Operator-owned OpenCode Agent
+deploy/orka/create-agent-secret.sh --context "$KUBE_CONTEXT"
+kubectl --context "$KUBE_CONTEXT" apply \
+  -f deploy/orka/opencode-agent.yaml
+deploy/orka/verify-agent.sh --context "$KUBE_CONTEXT"
+
+# Suspended dashboard release
+deploy/scripts/preflight.sh --context "$KUBE_CONTEXT"
+deploy/scripts/install.sh --context "$KUBE_CONTEXT"
+
+# Exactly one acceptance fetch
+export CONFIRM_RUN_ONCE=RUN
+export EVIDENCE_DIR=/absolute/path/outside/this/repository
+deploy/scripts/run-once.sh --context "$KUBE_CONTEXT"
+deploy/scripts/verify-live.sh --context "$KUBE_CONTEXT"
+```
+
+The dashboard installer creates its model and OAuth Secrets before Helm and the
+analyzer model Secret after the analysis namespace exists. It verifies the
+dashboard ServiceAccount Task RBAC and leaves the CronJob suspended. Review the
+manual fetch evidence for Orka Tasks, result retrieval, cache, patterns, traces,
+and UI publication. Keep the schedule suspended until an explicit promotion.
 
 ## Required cluster inputs
 
@@ -138,11 +194,18 @@ orka-model
   token
 ```
 
-The analyzer token is prompted separately. `create-secrets.sh` never copies the
-dashboard token into the analysis namespace. It writes protected temporary files
-with mode `0600`, uses `kubectl create secret --dry-run=client` only to construct
-a manifest, and applies through server-side apply so no last-applied annotation
-contains secret data.
+Separate Orka namespace:
+
+```text
+opencode-credentials
+  OPENAI_BASE_URL
+  OPENAI_API_KEY when required
+```
+
+Use `deploy/orka/create-agent-secret.sh` for the Orka Secret. The analyzer token
+is prompted separately. `create-secrets.sh` never copies the dashboard token into
+the analysis namespace. Both Secret tools write protected temporary files with
+mode `0600` and avoid client-side apply annotations containing Secret values.
 
 Provide protected values through environment variables or secure prompts:
 
@@ -204,7 +267,8 @@ It verifies:
 
 ## Install
 
-Install only after preflight succeeds:
+Install only after the separate Orka release and Agent are Ready and dashboard
+preflight succeeds. This command never installs or upgrades Orka:
 
 ```bash
 deploy/scripts/install.sh --context "$KUBE_CONTEXT"

@@ -34,7 +34,8 @@ initial acceptance. Validation must not create a CAPZ issue or pull request.
 - retained dashboard data, AI cache, traces, and interactive state
 - authenticated analysis chat and private trace console
 - optional GitHub OAuth actions overlay
-- optional operator-managed Orka OpenCode Agent example
+- separate cluster-level Orka Helm installation and CRD lifecycle tools
+- operator-owned Orka OpenCode Agent manifest, Secret setup, and readiness checks
 - secure Secret creation, read-only preflight, install, one-run, and live
   validation scripts
 - CI that pulls, lints, renders, and asserts every supported configuration
@@ -45,15 +46,20 @@ initial acceptance. Validation must not create a CAPZ issue or pull request.
 | --- | --- |
 | Dashboard chart | `1.0.0-beta.6` |
 | Dashboard engine | `1281269cc51f3172072396da3f2e734ac93e3445` |
-| Orka source | `d03acb995b6014a6e855181c50b922b65ea8e7ff` |
+| Orka release | Not published as of July 28, 2026 |
+| Orka minimum source | `fde3b7925c367784570fcc36d7a5b3a51747bf10` |
 
-The chart is pulled from
-`oci://ghcr.io/willie-yao/charts/prow-ai-dashboard`. Exact OCI chart and image
-digests are recorded in [`deploy/versions.env`](deploy/versions.env).
+The dashboard chart is pulled from
+`oci://ghcr.io/willie-yao/charts/prow-ai-dashboard`. Exact dashboard chart and
+image digests are recorded in [`deploy/versions.env`](deploy/versions.env).
 
-Orka is operator-managed. This repository does not install, upgrade, patch, or
-modify the Orka controller. No tagged Orka release contains the required
-OpenCode functionality at the time of this reference.
+Orka is operator-managed as a separate cluster-level Helm release. This
+repository provides explicit install, validate, upgrade, uninstall, and Agent
+setup tools under [`deploy/orka/`](deploy/orka/). The dashboard chart and
+dashboard installer never invoke them implicitly. No Orka tag or GitHub release
+exists as of July 28, 2026, so the normal Orka installer remains fail-closed.
+The source-commit path is maintainer-only and limited to local chart and kind
+validation because matching released runtime images do not exist.
 
 ## Repository layout
 
@@ -64,9 +70,9 @@ skills/                      CAPZ diagnostic recipes
 deploy/values.yaml           suspended base Helm values
 deploy/values-actions.yaml   optional OAuth actions and Orka fix runtime
 deploy/values-scheduled.yaml explicit scheduling promotion only
-deploy/versions.env          exact release commits and digests
-deploy/orka/                 operator-managed OpenCode Agent example
-deploy/scripts/              render, preflight, install, one-run, and validation tools
+deploy/versions.env          exact dashboard release commits and digests
+deploy/orka/                 separate Orka release lifecycle and OpenCode Agent setup
+deploy/scripts/              dashboard render, preflight, install, one-run, and validation tools
 .github/workflows/validate.yml
 ```
 
@@ -96,21 +102,30 @@ deploy/scripts/render.sh \
 ## Deployment and acceptance
 
 Read [`deploy/README.md`](deploy/README.md) before using a cluster. The deployment
-flow is:
+flow is explicit and Orka-first:
 
 1. choose an explicit non-production context
-2. supply an RWX StorageClass, CPU agentpool, model Service, model ID, and
-   dedicated demo OAuth application
-3. run read-only preflight
-4. install into a new namespace with scheduling suspended
-5. create the analyzer model Secret in the chart-created analysis namespace
-6. review the installed resources
-7. create exactly one manual fetch Job
-8. preserve evidence and run live verification
-9. port-forward the server for authenticated UI validation
-10. leave the CronJob suspended
+2. install Orka as release `orka` in namespace `orka-system`
+3. validate the 12 CRDs, controller, workers, harness wrapper, store, REST API,
+   and RBAC
+4. create the OpenCode model Secret
+5. apply and validate `opencode-fixer`
+6. supply the dashboard StorageClass, CPU agentpool, model Service, model ID,
+   OAuth application, and protected Secret inputs
+7. run dashboard preflight and install with the CronJob suspended
+8. verify the dashboard ServiceAccount Task RBAC and review installed resources
+9. create exactly one manual fetch Job
+10. validate Tasks, results, cache, patterns, traces, and the UI
+11. leave the CronJob suspended until a separate promotion decision
 
-The scripts do not apply `deploy/values-scheduled.yaml`.
+The dashboard installer creates dashboard model and OAuth Secrets before Helm,
+then creates the analyzer model Secret after the chart-created analysis
+namespace exists. It never installs Orka. The scripts do not apply
+`deploy/values-scheduled.yaml`.
+
+The Orka release steps cannot run on a cloud cluster until a verified release
+publishes the chart and all matching runtime images. No H100 installation or
+upgrade is permitted.
 
 ## Optional actions and fixes
 
