@@ -44,6 +44,27 @@ This source path does not build, publish, or provide matching runtime images. It
 is not a turnkey end-user installation and is not approved for production or a
 cloud-cluster installation.
 
+## Upgrade and uninstall
+
+Helm does not update files from a chart's `crds/` directory during upgrade.
+Run the guarded CRD-first workflow with an exact target chart and version:
+
+```bash
+deploy/orka/upgrade.sh \
+  --context <non-production-context> \
+  --chart <exact-released-chart-reference> \
+  --version <exact-version>
+```
+
+The script applies the exact target CRDs with the `orka-crd-lifecycle` field
+manager, replaces each CRD spec behind a resourceVersion test, waits for all
+CRDs, and only then upgrades and validates the release. It also takes a
+cluster-wide Lease so two CRD lifecycle operations cannot run concurrently.
+
+See [`uninstall.md`](uninstall.md) before removing a release. Helm retains CRDs
+and custom resources, but release resources including the chart-managed store
+PVC are removed.
+
 ## Owned resources
 
 The Orka chart manages the controller, worker ServiceAccounts and RBAC, REST

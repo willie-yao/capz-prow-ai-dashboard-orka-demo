@@ -163,7 +163,8 @@ jobs:
               'deploy/orka/README.md', 'deploy/orka/opencode-agent.yaml',
               'deploy/orka/versions.env', 'deploy/orka/values.yaml',
               'deploy/orka/install.sh', 'deploy/orka/validate.sh',
-              'deploy/orka/package-source.sh',
+              'deploy/orka/package-source.sh', 'deploy/orka/upgrade.sh',
+              'deploy/orka/uninstall.md',
               'deploy/scripts/preflight.sh', 'deploy/scripts/render.sh',
               'deploy/scripts/install.sh', 'deploy/scripts/create-secrets.sh',
               'deploy/scripts/run-once.sh', 'deploy/scripts/validate.sh',
@@ -285,6 +286,13 @@ jobs:
             kubectl --context "$context" wait \
               --for=condition=Established --timeout=60s "crd/$crd"
           done
+          source deploy/orka/versions.env
+          deploy/orka/upgrade.sh \
+            --context "$context" \
+            --chart "$chart" \
+            --version 0.1.1 \
+            --source-commit "$ORKA_MINIMUM_COMMIT" \
+            --yes
           helm uninstall orka --kube-context "$context" --namespace orka-system
           for crd in "${EXPECTED_CRDS[@]}"; do
             kubectl --context "$context" get "crd/$crd" >/dev/null
