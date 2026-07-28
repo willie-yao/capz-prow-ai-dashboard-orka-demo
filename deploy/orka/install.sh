@@ -148,6 +148,6 @@ EOF
 echo "Orka installation validated. Non-secret version evidence: ${evidence_dir}/versions.txt"
 echo "Next steps:"
 echo "  configure OPENAI_BASE_URL and optional OPENAI_API_KEY"
-echo "  ${REPO_ROOT}/deploy/scripts/create-secrets.sh --context ${context} opencode-credentials"
+echo "  ${SCRIPT_DIR}/create-agent-secret.sh --context ${context}"
 echo "  kubectl --context ${context} apply -f ${SCRIPT_DIR}/opencode-agent.yaml"
-echo "  verify the Agent is Ready before installing the dashboard"
+echo "  ${SCRIPT_DIR}/verify-agent.sh --context ${context}"
