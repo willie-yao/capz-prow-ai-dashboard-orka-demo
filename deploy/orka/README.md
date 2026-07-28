@@ -6,8 +6,8 @@ share one compatible Orka release.
 
 ## Release status
 
-No `orka-agents/orka` release or tag existed when this guide was verified on
-July 27, 2026. The normal installer is fail-closed until `versions.env` contains
+No `orka-agents/orka` release or tag existed when this guide was reverified on
+July 28, 2026. The normal installer is fail-closed until `versions.env` contains
 an exact published chart and the matching runtime image digests. Do not fill
 those fields from an unverified `0.1.1` tag. The release must contain Orka commit
 `fde3b7925c367784570fcc36d7a5b3a51747bf10` or later and publish all four runtime
