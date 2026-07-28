@@ -263,7 +263,13 @@ helm_upgrade_args=(
   --reset-then-reuse-values
 )
 if [[ "${source_mode}" != "true" ]]; then
-  helm_upgrade_args+=(--wait)
+  helm_upgrade_args+=(
+    --set-string "controller.image.tag=${target_version}@${ORKA_CONTROLLER_DIGEST}"
+    --set-string "workers.ai.image.tag=${target_version}@${ORKA_AI_WORKER_DIGEST}"
+    --set-string "workers.general.image.tag=${target_version}@${ORKA_GENERAL_WORKER_DIGEST}"
+    --set-string "workers.harnessWrapper.image.tag=${target_version}@${ORKA_HARNESS_WRAPPER_DIGEST}"
+    --wait
+  )
 fi
 helm "${helm_upgrade_args[@]}"
 

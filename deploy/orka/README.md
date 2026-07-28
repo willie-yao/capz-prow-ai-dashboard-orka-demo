@@ -23,9 +23,10 @@ deploy/orka/validate.sh --context <non-production-context>
 The installer always uses release `orka` in namespace `orka-system` unless the
 operator explicitly selects different names. It refuses context `h100`, checks
 for conflicting Orka installations, verifies persistent storage prerequisites,
-requires confirmation, validates the chart digest, installs the chart, waits for
-all 12 CRDs and both Deployments, verifies the REST API and RBAC, and records
-non-secret version evidence under ignored `deploy/evidence/`.
+requires confirmation, validates the chart digest, pins all four runtime image
+references as `tag@sha256:digest`, installs the chart, waits for all 12 CRDs and
+both Deployments, verifies the REST API and RBAC, and records non-secret version
+evidence under ignored `deploy/evidence/`.
 
 ## Maintainer-only source validation
 

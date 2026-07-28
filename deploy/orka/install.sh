@@ -123,6 +123,10 @@ helm upgrade --install "${release}" "${chart_package}" \
   --namespace "${namespace}" \
   --create-namespace \
   --values "${SCRIPT_DIR}/values.yaml" \
+  --set-string "controller.image.tag=${ORKA_CHART_VERSION}@${ORKA_CONTROLLER_DIGEST}" \
+  --set-string "workers.ai.image.tag=${ORKA_CHART_VERSION}@${ORKA_AI_WORKER_DIGEST}" \
+  --set-string "workers.general.image.tag=${ORKA_CHART_VERSION}@${ORKA_GENERAL_WORKER_DIGEST}" \
+  --set-string "workers.harnessWrapper.image.tag=${ORKA_CHART_VERSION}@${ORKA_HARNESS_WRAPPER_DIGEST}" \
   --wait
 
 "${SCRIPT_DIR}/validate.sh" \
