@@ -1,109 +1,82 @@
-# Optional Orka OpenCode fix runtime
+# Orka cluster installation
 
-This directory is an operator-facing example for the optional authenticated fix
-preview path. The dashboard repository does not install, patch, upgrade, or own
-Orka.
+Orka is a separate cluster-level Helm release. The dashboard chart does not
+install Orka, its controller, its workers, or its CRDs. Multiple dashboards may
+share one compatible Orka release.
 
-## Required Orka build
+## Release status
 
-The installed Orka control plane must contain commit:
+No `orka-agents/orka` release or tag existed when this guide was verified on
+July 27, 2026. The normal installer is fail-closed until `versions.env` contains
+an exact published chart and the matching runtime image digests. Do not fill
+those fields from an unverified `0.1.1` tag. The release must contain Orka commit
+`fde3b7925c367784570fcc36d7a5b3a51747bf10` or later and publish all four runtime
+images plus the chart.
 
-```text
-d03acb995b6014a6e855181c50b922b65ea8e7ff
-```
-
-That commit merged the verified OpenCode runtime integration. No tagged Orka
-release contains the required functionality at the time of this reference. The
-base preflight checks the CRD for `opencode` and checks the installed workload
-metadata for commit marker `d03acb`.
-
-The Orka operator is responsible for controller permissions required by that
-source build. Do not broaden the dashboard ServiceAccount to compensate for an
-operator installation problem. The dashboard ServiceAccount remains limited to
-Orka Tasks and the analysis input ConfigMaps required by the chart.
-
-## Agent example
-
-[`opencode-agent.yaml`](opencode-agent.yaml) defines the Agent referenced by
-`project.yaml`:
-
-```text
-orka-system/opencode-fixer
-```
-
-Before an operator applies the example, replace only the model name with the
-endpoint-specific provider model ID. The Agent runtime remains `opencode`.
-
-Applying the Agent is an Orka operator action and is not part of the base install
-script:
+The final operator path is:
 
 ```bash
-kubectl --context "$KUBE_CONTEXT" apply -f deploy/orka/opencode-agent.yaml
+deploy/orka/install.sh --context <non-production-context>
+deploy/orka/validate.sh --context <non-production-context>
 ```
 
-Do not run that command unless the selected context is non-production and the
-operator has approved the Agent configuration. The dashboard task does not
-install or modify the Orka controller.
+The installer always uses release `orka` in namespace `orka-system` unless the
+operator explicitly selects different names. It refuses context `h100`, checks
+for conflicting Orka installations, verifies persistent storage prerequisites,
+requires confirmation, validates the chart digest, installs the chart, waits for
+all 12 CRDs and both Deployments, verifies the REST API and RBAC, and records
+non-secret version evidence under ignored `deploy/evidence/`.
 
-## Model credentials
+## Maintainer-only source validation
 
-Create `orka-system/opencode-credentials` without committing a Secret manifest:
+Until a release exists, maintainers may package the chart from the exact minimum
+source commit for lint, render, and temporary kind validation:
 
 ```bash
-export OPENAI_BASE_URL=https://<provider-endpoint>/v1
-export OPENAI_API_KEY=...  # omit when the endpoint is unauthenticated
-deploy/scripts/create-secrets.sh --context "$KUBE_CONTEXT" opencode-credentials
+git -C /path/to/orka checkout --detach \
+  fde3b7925c367784570fcc36d7a5b3a51747bf10
+deploy/orka/package-source.sh \
+  --source-dir /path/to/orka \
+  --output-dir /tmp/orka-chart
 ```
 
-The Secret contains:
+This source path does not build, publish, or provide matching runtime images. It
+is not a turnkey end-user installation and is not approved for production or a
+cloud-cluster installation.
 
-```text
-OPENAI_BASE_URL
-OPENAI_API_KEY when required
-```
+## Owned resources
 
-The Secret belongs to Orka and is mounted only into the Agent workspace. The
-model endpoint, model credential, and model ID do not belong in `project.yaml`.
+The Orka chart manages the controller, worker ServiceAccounts and RBAC, REST
+Service, harness wrapper, persistent store, and these 12 CRDs:
 
-## Source repository credentials
+- `agentruntimes.core.orka.ai`
+- `agents.core.orka.ai`
+- `providers.core.orka.ai`
+- `repositorymonitors.core.orka.ai`
+- `repositoryscans.core.orka.ai`
+- `skills.core.orka.ai`
+- `substrateactorpools.core.orka.ai`
+- `tasks.core.orka.ai`
+- `tools.core.orka.ai`
+- `gatewaybindings.gateway.orka.ai`
+- `gatewayclasses.gateway.orka.ai`
+- `gateways.gateway.orka.ai`
 
-CAPZ is public, so the example does not configure `git_secret`. A private source
-repository requires a separate read-only clone credential owned by Orka. Never
-reuse the GitHub OAuth token or another write-capable dashboard token as the
-clone credential.
+A fresh Helm install creates the CRDs before release resources. The chart now
+includes AgentRuntime and SubstrateActorPool controller permissions, so the
+dashboard must not patch or broaden Orka controller RBAC.
 
-The boundary is strict:
+## Configuration
 
-- Orka clones the pinned source and generates a workspace change.
-- Orka captures the final workspace and returns the outer structured result.
-- The Agent never receives the GitHub write token.
-- The dashboard verifies the base SHA, paths, file list, and reconstructed diff.
-- The dashboard presents a preview and performs any later GitHub write.
+[`values.yaml`](values.yaml) contains only non-secret, cluster-operator-owned
+settings. An empty harness-wrapper Secret and token configuration makes the chart
+generate and preserve a release-local token. Never commit that token. The demo
+does not enable GitHub webhooks or label-triggered automation.
 
-## Actions overlay
+Use one Orka controller release per namespace. Multiple releases require unique
+release names, isolated controller namespaces, and distinct non-empty watch
+namespaces. Never combine a cluster-wide watcher with namespace-scoped releases.
 
-[`../values-actions.yaml`](../values-actions.yaml) enables OAuth actions and the
-fix runtime. The base [`../values.yaml`](../values.yaml) remains actions-disabled
-and fix-runtime-disabled.
-
-Render the optional configuration without applying it:
-
-```bash
-deploy/scripts/render.sh \
-  --values deploy/values-actions.yaml \
-  --output deploy/.rendered/actions.yaml
-```
-
-Before any application:
-
-- replace the OAuth client ID, callback URL, and administrator login through the
-  environment inputs documented in [`../README.md`](../README.md)
-- create `dashboard-oauth`
-- create `opencode-credentials`
-- replace the CLA author placeholders in `project.yaml`
-- verify `opencode-fixer` is Ready
-- confirm the source target and fork behavior
-
-During acceptance, generate preview-only issue and fix drafts. Stop before the
-final GitHub confirmation. Do not create an issue or pull request in
-`kubernetes-sigs/cluster-api-provider-azure`.
+OpenCode Agent setup remains a separate operator step. See
+[`opencode-agent.yaml`](opencode-agent.yaml). Model credentials and the Agent are
+not created by the Orka installer.
