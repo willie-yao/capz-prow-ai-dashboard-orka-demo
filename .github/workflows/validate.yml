@@ -233,6 +233,24 @@ jobs:
             exit 1
           fi
 
+          controller_digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          ai_digest=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+          general_digest=sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+          harness_digest=sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+          helm template orka "$chart" \
+            --namespace orka-system \
+            --values deploy/orka/values.yaml \
+            --set-string "controller.image.tag=0.1.1@$controller_digest" \
+            --set-string "workers.ai.image.tag=0.1.1@$ai_digest" \
+            --set-string "workers.general.image.tag=0.1.1@$general_digest" \
+            --set-string "workers.harnessWrapper.image.tag=0.1.1@$harness_digest" \
+            > "$RUNNER_TEMP/orka-digest-rendered.yaml"
+          digest_rendered="$RUNNER_TEMP/orka-digest-rendered.yaml"
+          grep -Fq "ghcr.io/orka-agents/orka:0.1.1@$controller_digest" "$digest_rendered"
+          grep -Fq "ghcr.io/orka-agents/orka/ai-worker:0.1.1@$ai_digest" "$digest_rendered"
+          grep -Fq "ghcr.io/orka-agents/orka/general-worker:0.1.1@$general_digest" "$digest_rendered"
+          grep -Fq "ghcr.io/orka-agents/orka/agent-harness-wrapper:0.1.1@$harness_digest" "$digest_rendered"
+
       - name: Check Orka scripts and repository boundaries
         run: |
           set -euo pipefail

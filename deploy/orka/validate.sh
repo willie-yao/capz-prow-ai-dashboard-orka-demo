@@ -119,10 +119,10 @@ fi
 manifest=$(helm get manifest "${release}" --kube-context "${context}" \
   --namespace "${namespace}")
 expected_image_refs=(
-  "ghcr.io/orka-agents/orka:${ORKA_CHART_VERSION}"
-  "ghcr.io/orka-agents/orka/ai-worker:${ORKA_CHART_VERSION}"
-  "ghcr.io/orka-agents/orka/general-worker:${ORKA_CHART_VERSION}"
-  "ghcr.io/orka-agents/orka/agent-harness-wrapper:${ORKA_CHART_VERSION}"
+  "ghcr.io/orka-agents/orka:${ORKA_CHART_VERSION}@${ORKA_CONTROLLER_DIGEST}"
+  "ghcr.io/orka-agents/orka/ai-worker:${ORKA_CHART_VERSION}@${ORKA_AI_WORKER_DIGEST}"
+  "ghcr.io/orka-agents/orka/general-worker:${ORKA_CHART_VERSION}@${ORKA_GENERAL_WORKER_DIGEST}"
+  "ghcr.io/orka-agents/orka/agent-harness-wrapper:${ORKA_CHART_VERSION}@${ORKA_HARNESS_WRAPPER_DIGEST}"
 )
 for expected_image_ref in "${expected_image_refs[@]}"; do
   if ! grep -Fq "${expected_image_ref}" <<<"${manifest}"; then
