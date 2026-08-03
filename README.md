@@ -27,7 +27,7 @@ initial acceptance. Validation must not create a CAPZ issue or pull request.
 
 - CAPZ TestGrid discovery from
   `sig-cluster-lifecycle-cluster-api-provider-azure`
-- CAPZ-specific prompt knowledge and twelve reviewed diagnostic skills
+- CAPZ-specific prompt knowledge and thirteen reviewed diagnostic skills
 - exact dashboard chart and image pins
 - suspended Helm Cron deployment
 - experimental Orka container analyzer Tasks with bounded concurrency

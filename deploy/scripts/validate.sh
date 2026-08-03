@@ -25,6 +25,17 @@ for digest in "$DASHBOARD_CHART_DIGEST" "$DASHBOARD_CHART_ASSET_DIGEST" \
 done
 [[ $ORKA_REQUIRED_COMMIT =~ ^[0-9a-f]{40}$ ]] || fail "Orka commit is not a full SHA"
 
+skill_file="$ROOT_DIR/skills/aks-kubernetes-version-support.yaml"
+[[ -f $skill_file ]] || fail "AKS version support skill is missing"
+skill_count=$(find "$ROOT_DIR/skills" -maxdepth 1 -type f -name '*.yaml' | wc -l | tr -d ' ')
+[[ $skill_count == 13 ]] || fail "expected 13 consumer skills, found $skill_count"
+grep -Fq 'supported non-LTS version or enable the required support plan' "$skill_file"
+grep -Fq 'Before naming a source file, use grep_repo or read_repo_file' "$skill_file"
+grep -Fq 'Do not provide an exact cloud-provider command or option name' "$skill_file"
+if grep -Eq -- '(^|[[:space:]])az[[:space:]]|--[[:alnum:]-]+' "$skill_file"; then
+  fail "AKS version support skill contains ungrounded cloud CLI syntax"
+fi
+
 expected_schedule="$temp_dir/values-scheduled.yaml"
 printf 'fetcher:\n  suspend: false\n' > "$expected_schedule"
 cmp -s "$expected_schedule" "$DEPLOY_DIR/values-scheduled.yaml" || fail "values-scheduled.yaml contains more than the reviewed promotion"
@@ -82,6 +93,8 @@ fi
 grep -Fq 'resources: ["tasks"]' "$base_render"
 grep -Fq 'resources: ["configmaps"]' "$base_render"
 grep -Fq 'kind: ValidatingAdmissionPolicy' "$base_render"
+grep -Fq 'id: aks-kubernetes-version-support' "$base_render"
+grep -Fq 'K8sVersionNotSupported' "$base_render"
 grep -Fq "image: ghcr.io/willie-yao/prow-ai-dashboard:v$DASHBOARD_CHART_VERSION" "$base_render"
 grep -Fq -- "-orka-analysis-image=ghcr.io/willie-yao/prow-ai-dashboard/analyzer:v$DASHBOARD_CHART_VERSION" "$base_render"
 if grep -Fq 'ACTIONS_ENABLED' "$base_render"; then
