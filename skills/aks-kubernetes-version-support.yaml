@@ -1,0 +1,51 @@
+id: aks-kubernetes-version-support
+name: AKS Kubernetes version support or LTS requirement
+description: |
+  AKS cluster creation rejects the requested Kubernetes version because the
+  version is unsupported or requires a Long-Term Support plan. The provider
+  error determines whether the job must select a supported version or enable
+  the required support plan. Do not infer exact cloud CLI syntax or a source
+  edit location from the error alone.
+
+priority: 190
+
+triggers:
+  - '(?i)K8sVersionNotSupported'
+  - '(?i)(Kubernetes|K8s).{0,80}version.{0,80}(not supported|unsupported)'
+  - '(?i)(Long[- ]Term Support|\bLTS\b).{0,80}(required|support plan|not enabled|unsupported)'
+  - '(?i)(AKS|ManagedCluster).{0,120}(version|support plan).{0,80}(fail|error|unsupported|required)'
+
+required_evidence:
+  - id: aks-version-provider-error
+    description: Build log containing the exact AKS version or LTS rejection
+    any_of:
+      - 'build-log\.txt'
+      - '.*build-log\.txt'
+    content_any_of:
+      - '(?i)K8sVersionNotSupported'
+      - '(?i)(Kubernetes|K8s).{0,80}version.{0,80}(not supported|unsupported)'
+      - '(?i)(Long[- ]Term Support|\bLTS\b).{0,80}(required|support plan|not enabled)'
+
+procedure: |
+  1. Read the exact AKS provider error in build-log.txt. Quote the requested
+     Kubernetes version, the rejection code, and any supported-version or
+     support-plan detail returned by the provider.
+  2. Keep these remediation outcomes distinct:
+     - If the provider says the version is unsupported, select a version that
+       the provider error or verified project configuration establishes as
+       supported.
+     - If the provider explicitly requires Long-Term Support, either select a
+       supported non-LTS version or enable the required support plan when the
+       job is intentionally testing LTS. Do not claim that choosing another
+       version and enabling LTS are the same fix.
+  3. Before naming a source file, use grep_repo or read_repo_file at the exact
+     tested commit. Put only a path that was actually read in relevant_files.
+     Put an unverified path or symbol in search_suggestions instead.
+  4. Do not provide an exact cloud-provider command or option name unless the
+     exact syntax appears in the build artifact, verified project source, or
+     another applicable consumer procedure. Otherwise describe the required
+     outcome, such as selecting a supported version or enabling the required
+     support plan through verified project automation.
+  5. Preserve the provider-backed root cause even when command syntax or the
+     source edit location is not grounded. The verification step is to rerun
+     the same job and confirm AKS accepts the requested version and plan.
